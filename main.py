@@ -15,29 +15,44 @@ st.sidebar.title("📦 Inventory Management")
 page = st.sidebar.radio("Go to", ["Stock In", "Sell", "Accrual", "Reports"])
 
 # ---------------- STOCK IN ----------------
+# ---------------- STOCK IN ----------------
 if page == "Stock In":
     st.header("➕ Add Stock to Inventory")
     with st.form("stock_in_form"):
-        sku = st.text_input("SKU (unique)")
-        name = st.text_input("Product Name")
-        price = st.number_input("Unit Price", min_value=0.0, step=0.01)
+        sku = st.text_input("SKU (unique)", placeholder="Enter a unique SKU")
+        name = st.text_input("Product Name", placeholder="Enter product name")
+        price = st.number_input("Unit Price", min_value=0.0, step=0.01, format="%.2f")
         qty = st.number_input("Quantity", min_value=1, step=1)
         submitted = st.form_submit_button("Add to Inventory")
 
         if submitted:
-            existing = supabase.table("inventory").select("*").eq("sku", sku).execute()
-            if existing.data:
-                new_qty = existing.data[0]["total_unit"] + qty
-                supabase.table("inventory").update({"total_unit": new_qty}).eq("sku", sku).execute()
-                st.success(f"Updated {name} stock to {new_qty}")
+            # Validation check
+            if not sku.strip():
+                st.error("❌ SKU is required.")
+            elif not name.strip():
+                st.error("❌ Product Name is required.")
+            elif price <= 0:
+                st.error("❌ Unit Price must be greater than 0.")
+            elif qty <= 0:
+                st.error("❌ Quantity must be greater than 0.")
             else:
-                supabase.table("inventory").insert({
-                    "sku": sku,
-                    "product_name": name,
-                    "unit_price": price,
-                    "total_unit": qty
-                }).execute()
-                st.success(f"Added {qty} units of {name}")
+                # Proceed if valid
+                existing = supabase.table("inventory").select("*").eq("sku", sku).execute()
+                if existing.data:
+                    new_qty = existing.data[0]["total_unit"] + qty
+                    supabase.table("inventory").update(
+                        {"total_unit": new_qty, "unit_price": price, "product_name": name}
+                    ).eq("sku", sku).execute()
+                    st.success(f"✅ Updated {name} stock to {new_qty}")
+                else:
+                    supabase.table("inventory").insert({
+                        "sku": sku,
+                        "product_name": name,
+                        "unit_price": price,
+                        "total_unit": qty
+                    }).execute()
+                    st.success(f"✅ Added {qty} units of {name}")
+
 
 # ---------------- SELL ----------------
 elif page == "Sell":

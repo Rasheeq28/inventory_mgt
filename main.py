@@ -15,7 +15,6 @@ st.sidebar.title("📦 Inventory Management")
 page = st.sidebar.radio("Go to", ["Stock In", "Sell", "Accrual", "Reports"])
 
 # ---------------- STOCK IN ----------------
-# ---------------- STOCK IN ----------------
 if page == "Stock In":
     st.header("➕ Add Stock to Inventory")
     with st.form("stock_in_form"):
@@ -26,32 +25,54 @@ if page == "Stock In":
         submitted = st.form_submit_button("Add to Inventory")
 
         if submitted:
+            # Normalize SKU and Name (lowercase, trimmed)
+            norm_sku = sku.strip().lower()
+            norm_name = name.strip().lower()
+
             # Validation check
-            if not sku.strip():
+            if not norm_sku:
                 st.error("❌ SKU is required.")
-            elif not name.strip():
+            elif not norm_name:
                 st.error("❌ Product Name is required.")
             elif price <= 0:
                 st.error("❌ Unit Price must be greater than 0.")
             elif qty <= 0:
                 st.error("❌ Quantity must be greater than 0.")
             else:
-                # Proceed if valid
-                existing = supabase.table("inventory").select("*").eq("sku", sku).execute()
-                if existing.data:
-                    new_qty = existing.data[0]["total_unit"] + qty
-                    supabase.table("inventory").update(
-                        {"total_unit": new_qty, "unit_price": price, "product_name": name}
-                    ).eq("sku", sku).execute()
-                    st.success(f"✅ Updated {name} stock to {new_qty}")
-                else:
-                    supabase.table("inventory").insert({
-                        "sku": sku,
-                        "product_name": name,
-                        "unit_price": price,
-                        "total_unit": qty
-                    }).execute()
-                    st.success(f"✅ Added {qty} units of {name}")
+                # Check if SKU already exists
+                sku_check = supabase.table("inventory").select("*").execute()
+                conflict = False
+                for item in sku_check.data:
+                    db_sku = item["sku"].strip().lower()
+                    db_name = item["product_name"].strip().lower()
+
+                    if norm_sku == db_sku and norm_name != db_name:
+                        st.error(f"❌ SKU '{sku}' is already assigned to '{item['product_name']}'")
+                        conflict = True
+                        break
+
+                    if norm_name == db_name and norm_sku != db_sku:
+                        st.error(f"❌ Product '{name}' already exists with SKU '{item['sku']}'")
+                        conflict = True
+                        break
+
+                if not conflict:
+                    # Insert or update stock
+                    existing = supabase.table("inventory").select("*").eq("sku", sku).execute()
+                    if existing.data:
+                        new_qty = existing.data[0]["total_unit"] + qty
+                        supabase.table("inventory").update(
+                            {"total_unit": new_qty, "unit_price": price, "product_name": name}
+                        ).eq("sku", sku).execute()
+                        st.success(f"✅ Updated {name} stock to {new_qty}")
+                    else:
+                        supabase.table("inventory").insert({
+                            "sku": sku,
+                            "product_name": name,
+                            "unit_price": price,
+                            "total_unit": qty
+                        }).execute()
+                        st.success(f"✅ Added {qty} units of {name}")
 
 
 # ---------------- SELL ----------------
